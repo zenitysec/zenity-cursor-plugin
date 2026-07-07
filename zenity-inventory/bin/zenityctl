@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# zenityctl — onboarding for the Zenity Cursor inventory plugin (macOS).
+#
+#   zenityctl enroll      Terminal prompt for tenant + enrollment key (hidden);
+#                         store the key in the login Keychain and authorize
+#                         silent reads (partition-list pin).
+#   zenityctl enroll-gui  GUI (osascript) onboarding: tenant dropdown + hidden
+#                         key. Invoked by the hook on first run. No-op (exit 0)
+#                         when there is no window server.
+#   zenityctl uninstall   Remove the key + device token + config.
+#   zenityctl status      Show what's configured (no secrets).
+#
+# The enrollment key and device token live only in the Keychain. The actual
+# inventory scan + enroll + POST is done by the vendored device-instrumentation
+# producer (vendor/inventory_bash), which reads those credentials from the
+# Keychain — see lib/inv/{cursor_config,token_cache}.sh there.
+
+set -uo pipefail
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=../lib/common.sh
+. "$DIR/lib/common.sh"
+
+cmd_enroll() {
+  local key key2 tenant login_pw
+  printf 'Zenity tenant [eu/us] (default eu): ' >&2
+  read -r tenant </dev/tty
+  tenant="$(printf '%s' "${tenant:-eu}" | tr '[:upper:]' '[:lower:]')"
+  case "$tenant" in eu|us) : ;; *) zen_log "invalid tenant '$tenant' (use eu or us)"; return 1 ;; esac
+
+  printf 'Zenity enrollment key (hidden): ' >&2
+  read -rs key </dev/tty; printf '\n' >&2
+  printf 'Confirm enrollment key: ' >&2
+  read -rs key2 </dev/tty; printf '\n' >&2
+  [ -n "$key" ] || { zen_log "empty key"; return 1; }
+  [ "$key" = "$key2" ] || { zen_log "keys do not match"; return 1; }
+
+  zen_keychain_store "$key" || { zen_log "failed to store key in Keychain"; return 1; }
+  # Authorize silent reads by /usr/bin/security (the producer reads the key from
+  # a subprocess). Read the login password and pass it via -k so `security`
+  # doesn't pop its own GUI dialog (which prompts twice and is easy to miss).
+  printf 'macOS login password (to authorize silent Keychain reads; leave blank to skip): ' >&2
+  read -rs login_pw </dev/tty; printf '\n' >&2
+  if [ -n "$login_pw" ]; then
+    zen_keychain_pin_partition "$ZEN_SERVICE" -k "$login_pw" \
+      && zen_log "authorized silent Keychain access" \
+      || zen_log "warning: partition pin failed (wrong password?); the hook may prompt on read"
+  else
+    zen_log "skipped partition pin; the hook may prompt for your password on read"
+  fi
+  unset login_pw
+  zen_write_config "$tenant"
+  zen_token_clear   # drop any stale token so the producer re-enrolls
+  zen_log "stored enrollment key; tenant=$tenant. Restart Cursor to pick up the new session."
+}
+
+# GUI onboarding via osascript: tenant dropdown + hidden API key. No-op (exit 0)
+# without a window server (SSH / background agent). Stores the key in the
+# Keychain; the first cross-process read surfaces macOS's native "Always Allow".
+cmd_enroll_gui() {
+  if [ "$(launchctl managername 2>/dev/null)" != "Aqua" ]; then
+    zen_log "no window server (Aqua) — skipping GUI enroll"
+    return 0
+  fi
+  local tenant
+  tenant="$(osascript <<'OSA' 2>/dev/null
+set theTenant to (choose from list {"EU", "US"} with title "Zenity API Configuration" with prompt "Select your Zenity tenant:" default items {"EU"} without multiple selections allowed and empty selection allowed)
+if theTenant is false then error number -128
+set theSecret to text returned of (display dialog "Enter your Zenity API key for " & (theTenant as text) & ":" default answer "" with hidden answer with title "Zenity" buttons {"Cancel", "OK"} default button "OK")
+do shell script "security add-generic-password -a " & quoted form of (do shell script "id -un") & " -s zenity-cursor-inventory -j 'Cursor inventory plugin' -T /usr/bin/security -U -w " & quoted form of theSecret
+(theTenant as text)
+OSA
+)" || { zen_log "GUI enroll cancelled or unavailable"; return 0; }
+  tenant="$(printf '%s' "$tenant" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  case "$tenant" in eu|us) : ;; *) zen_log "GUI enroll: unexpected tenant '$tenant'"; return 0 ;; esac
+  zen_write_config "$tenant"
+  zen_token_clear
+  zen_log "GUI enroll complete; tenant=$tenant"
+}
+
+cmd_uninstall() {
+  zen_keychain_delete
+  zen_token_clear
+  rm -f "$ZEN_CONFIG" 2>/dev/null || true
+  zen_log "removed Keychain key, device token, and config"
+}
+
+cmd_status() {
+  printf 'tenant:              %s\n' "$(zen_tenant)"
+  printf 'manager URL:         %s\n' "$(zen_manager_url)"
+  printf 'inventory URL:       %s\n' "$(zen_inventory_url)"
+  printf 'key in Keychain:     %s\n' "$([ -n "$(zen_keychain_read)" ] && echo yes || echo no)"
+  printf 'device token cached: %s\n' "$([ -n "$(zen_token_read)" ] && echo yes || echo no)"
+}
+
+case "${1:-}" in
+  enroll)     cmd_enroll ;;
+  enroll-gui) cmd_enroll_gui ;;
+  uninstall)  cmd_uninstall ;;
+  status)     cmd_status ;;
+  *) printf 'usage: zenityctl {enroll|enroll-gui|uninstall|status}\n' >&2; exit 2 ;;
+esac

@@ -1,0 +1,12 @@
+{
+  "name": "zenity-inventory",
+  "displayName": "Zenity Inventory",
+  "version": "0.3.0",
+  "description": "Reports this device's Cursor MCP servers to Zenity AI Edge on session start. Minimal, self-contained scan; secrets in MCP configs are scrubbed and never transmitted.",
+  "author": { "name": "Zenity", "email": "plugins@zenity.io" },
+  "homepage": "https://zenity.io",
+  "repository": "https://github.com/zenitysec/cursor-market-plugin",
+  "license": "MIT",
+  "keywords": ["security", "governance", "inventory", "aispm", "mcp"],
+  "hooks": "./hooks/hooks.json"
+}
