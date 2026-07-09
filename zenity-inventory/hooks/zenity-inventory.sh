@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # zenity-inventory.sh — Cursor `sessionStart` hook (fire-and-forget).
 #
-# The "stupid scan": collect ONLY the device's Cursor MCP servers and POST them
+# The scan: collect ONLY the device's Cursor MCP servers and POST them
 # to Zenity AI Edge. Self-contained — no external/vendored producer. Credentials
 # come from the macOS Keychain (onboarded via zenityctl). FAIL-OPEN: any error
 # logs to stderr and the script still exits 0; it must never disrupt a session.
