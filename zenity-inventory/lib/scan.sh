@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scan.sh — the "stupid scan": collect ONLY Cursor MCP servers and POST them to
+# scan.sh — the scan: collect ONLY Cursor MCP servers and POST them to
 # Zenity AI Edge in the v1.0.0 envelope. Self-contained (our own code, no
 # external producer). macOS, base tools only (security/curl/plutil/shasum/ioreg).
 #
