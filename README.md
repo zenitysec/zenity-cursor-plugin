@@ -11,7 +11,7 @@
   ·
   <a href="zenity-inventory/">zenity-inventory</a>
   ·
-  <a href="https://github.com/zenitysec/cursor-market-plugin/issues">Issues</a>
+  <a href="https://github.com/zenitysec/zenity-cursor-plugin/issues">Issues</a>
 </p>
 
 <p align="center">
@@ -93,7 +93,7 @@ a **team / private marketplace** with central governance. Submit for review at
 
 ## Support
 
-- **Bugs & feature requests** — [open an issue](https://github.com/zenitysec/cursor-market-plugin/issues).
+- **Bugs & feature requests** — [open an issue](https://github.com/zenitysec/zenity-cursor-plugin/issues).
 - **Customers** — reach out through your usual Zenity support channel or
   [plugins@zenity.io](mailto:plugins@zenity.io).
 
